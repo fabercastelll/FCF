@@ -9,6 +9,45 @@ st.set_page_config(
     layout="wide"
 )
 
+# Agregar CSS personalizado para las líneas divisorias
+st.markdown("""
+<style>
+    .linea-divisoria {
+        border-top: 2px solid #e6e6e6;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    
+    /* Estilo para las secciones de cálculo */
+    .stSelectbox, .stNumberInput, .stSlider {
+        margin-bottom: 15px;
+    }
+    
+    /* Destacar los botones principales */
+    .stButton button[data-baseweb="button"] {
+        font-weight: bold;
+    }
+    
+    /* Mejorar la legibilidad de la tabla */
+    .dataframe {
+        font-size: 14px !important;
+    }
+    
+    /* Destacar la métrica de operaciones */
+    [data-testid="stMetricValue"] {
+        font-size: 24px !important;
+        font-weight: bold !important;
+        color: #0068c9 !important;
+    }
+    
+    /* Mejorar visibilidad de los títulos de sección */
+    h3 {
+        margin-top: 10px !important;
+        color: #0068c9 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Función para formatear números en PYG sin decimales
 def formatear_pyg(valor):
     if isinstance(valor, (int, float)):
@@ -173,7 +212,7 @@ with header_col2:
     if reset_todo_superior:
         reset_all()
         st.success("Todas las reinversiones han sido reiniciadas")
-        st.experimental_rerun()
+        st.rerun()
 
 # Línea divisoria debajo del título
 st.markdown("---")
@@ -221,7 +260,7 @@ with col_inicial:
     )
     
     # Nuevos campos para reemplazar Cuota Final
-    st.markdown("---")  # Línea divisoria
+    st.markdown("<div class='linea-divisoria'></div>", unsafe_allow_html=True)
     st.subheader("Regulación")
     
     meses_sin_cobros_inicial = st.number_input(
@@ -229,7 +268,8 @@ with col_inicial:
         min_value=0, 
         value=6, 
         step=1,
-        key="meses_sin_cobros_inicial"
+        key="meses_sin_cobros_inicial",
+        help="Tiempo entre el fin de cuotas normales y el inicio de cuotas de regulación"
     )
     
     cuotas_regulacion_inicial = st.number_input(
@@ -237,7 +277,8 @@ with col_inicial:
         min_value=0, 
         value=5, 
         step=1,
-        key="cuotas_regulacion_inicial"
+        key="cuotas_regulacion_inicial",
+        help="Número de cuotas para el cobro de regulación"
     )
     
     importe_regulacion_inicial = st.number_input(
@@ -245,7 +286,8 @@ with col_inicial:
         min_value=0, 
         value=500000, 
         step=100000,
-        key="importe_regulacion_inicial"
+        key="importe_regulacion_inicial",
+        help="Importe de cada cuota de regulación (antes de aplicar % de distribución)"
     )
     
     # Usar radio buttons para el % de Distribución
@@ -255,7 +297,8 @@ with col_inicial:
         options=[20, 40, 60, 80],
         index=1,  # Predeterminado 40% (índice 1)
         horizontal=True,
-        key="pct_distribucion_inicial"
+        key="pct_distribucion_inicial",
+        help="Porcentaje del importe de regulación que corresponde al flujo"
     )
     
     no_cobro_inicial = st.slider(
@@ -270,12 +313,14 @@ with col_inicial:
     # Mostrar operaciones calculadas
     st.metric("Operaciones:", ops_inicial)
     
+    # Mover el campo de meses de demora aquí (antes de la divisoria)
     meses_demora_inicial = st.number_input(
-        "Meses Demora:", 
+        "Meses Hasta Primer Cobro:", 
         min_value=0, 
         value=0, 
         step=1,
-        key="meses_demora_inicial"
+        key="meses_demora_inicial",
+        help="Tiempo que transcurre desde la inversión hasta recibir el primer pago"
     )
     
     col1, col2 = st.columns(2)
@@ -286,7 +331,7 @@ with col_inicial:
         if reset_inicial:
             reset_all()
             st.success("Inversión inicial y reinversiones reiniciados")
-            st.experimental_rerun()
+            st.rerun()
 
 # ---- Sección Reinversión Compra ----
 with col_compra:
@@ -336,7 +381,7 @@ with col_compra:
     )
     
     # Nuevos campos para reemplazar Cuota Final en Compra
-    st.markdown("---")  # Línea divisoria
+    st.markdown("<div class='linea-divisoria'></div>", unsafe_allow_html=True)
     st.subheader("Regulación")
     
     meses_sin_cobros_compra = st.number_input(
@@ -344,7 +389,8 @@ with col_compra:
         min_value=0, 
         value=6, 
         step=1,
-        key="meses_sin_cobros_compra"
+        key="meses_sin_cobros_compra",
+        help="Tiempo entre el fin de cuotas normales y el inicio de cuotas de regulación"
     )
     
     cuotas_regulacion_compra = st.number_input(
@@ -352,7 +398,8 @@ with col_compra:
         min_value=0, 
         value=5, 
         step=1,
-        key="cuotas_regulacion_compra"
+        key="cuotas_regulacion_compra",
+        help="Número de cuotas para el cobro de regulación"
     )
     
     importe_regulacion_compra = st.number_input(
@@ -360,7 +407,8 @@ with col_compra:
         min_value=0, 
         value=500000, 
         step=100000,
-        key="importe_regulacion_compra"
+        key="importe_regulacion_compra",
+        help="Importe de cada cuota de regulación (antes de aplicar % de distribución)"
     )
     
     # Usar radio buttons para el % de Distribución
@@ -370,7 +418,8 @@ with col_compra:
         options=[20, 40, 60, 80],
         index=1,  # Predeterminado 40% (índice 1)
         horizontal=True,
-        key="pct_distribucion_compra"
+        key="pct_distribucion_compra",
+        help="Porcentaje del importe de regulación que corresponde al flujo"
     )
     
     no_cobro_compra = st.slider(
@@ -385,12 +434,14 @@ with col_compra:
     # Mostrar operaciones calculadas
     st.metric("Operaciones:", ops_compra)
     
+    # Mover el campo de meses de demora aquí (antes de la divisoria)
     meses_demora_compra = st.number_input(
-        "Meses Demora:", 
+        "Meses Hasta Primer Cobro:", 
         min_value=0, 
         value=0, 
         step=1,
-        key="meses_demora_compra"
+        key="meses_demora_compra",
+        help="Tiempo que transcurre desde la inversión hasta recibir el primer pago"
     )
     
     col1, col2 = st.columns(2)
@@ -467,7 +518,7 @@ with col_colocacion:
     )
     
     # Nuevos campos para reemplazar Cuota Final en Colocación
-    st.markdown("---")  # Línea divisoria
+    st.markdown("<div class='linea-divisoria'></div>", unsafe_allow_html=True)
     st.subheader("Regulación")
     
     meses_sin_cobros_colocacion = st.number_input(
@@ -475,7 +526,8 @@ with col_colocacion:
         min_value=0, 
         value=6, 
         step=1,
-        key="meses_sin_cobros_colocacion"
+        key="meses_sin_cobros_colocacion",
+        help="Tiempo entre el fin de cuotas normales y el inicio de cuotas de regulación"
     )
     
     cuotas_regulacion_colocacion = st.number_input(
@@ -483,7 +535,8 @@ with col_colocacion:
         min_value=0, 
         value=5, 
         step=1,
-        key="cuotas_regulacion_colocacion"
+        key="cuotas_regulacion_colocacion",
+        help="Número de cuotas para el cobro de regulación"
     )
     
     importe_regulacion_colocacion = st.number_input(
@@ -491,7 +544,8 @@ with col_colocacion:
         min_value=0, 
         value=500000, 
         step=100000,
-        key="importe_regulacion_colocacion"
+        key="importe_regulacion_colocacion",
+        help="Importe de cada cuota de regulación (antes de aplicar % de distribución)"
     )
     
     # Usar radio buttons para el % de Distribución
@@ -501,7 +555,8 @@ with col_colocacion:
         options=[20, 40, 60, 80],
         index=1,  # Predeterminado 40% (índice 1)
         horizontal=True,
-        key="pct_distribucion_colocacion"
+        key="pct_distribucion_colocacion",
+        help="Porcentaje del importe de regulación que corresponde al flujo"
     )
     
     no_cobro_colocacion = st.slider(
@@ -516,12 +571,14 @@ with col_colocacion:
     # Mostrar operaciones calculadas
     st.metric("Operaciones:", ops_colocacion)
     
+    # Mover el campo de meses de demora aquí (antes de la divisoria)
     meses_demora_colocacion = st.number_input(
-        "Meses Demora:", 
+        "Meses Hasta Primer Cobro:", 
         min_value=0, 
         value=0, 
         step=1,
-        key="meses_demora_colocacion"
+        key="meses_demora_colocacion",
+        help="Tiempo que transcurre desde la inversión hasta recibir el primer pago"
     )
     
     col1, col2 = st.columns(2)
