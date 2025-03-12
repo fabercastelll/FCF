@@ -9,13 +9,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# Agregar CSS personalizado para las líneas divisorias
+# Agregar CSS personalizado para las líneas divisorias y alineación
 st.markdown("""
 <style>
+    /* Ajustar altura mínima de las secciones principales para alinear divisores */
+    .seccion-principal {
+        min-height: 380px;
+        position: relative;
+        padding-bottom: 20px;
+    }
+
+    /* Posicionamiento absoluto para las líneas divisorias */
     .linea-divisoria {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
         border-top: 2px solid #e6e6e6;
         margin-top: 20px;
         margin-bottom: 20px;
+        width: 100%;
     }
     
     /* Estilo para las secciones de cálculo */
@@ -26,6 +39,13 @@ st.markdown("""
     /* Destacar los botones principales */
     .stButton button[data-baseweb="button"] {
         font-weight: bold;
+    }
+    
+    /* Hacer que los botones tengan el mismo tamaño */
+    .boton-accion button {
+        width: 100% !important;
+        margin-top: 10px;
+        height: 46px !important;
     }
     
     /* Mejorar la legibilidad de la tabla */
@@ -44,6 +64,18 @@ st.markdown("""
     h3 {
         margin-top: 10px !important;
         color: #0068c9 !important;
+    }
+
+    /* Ajuste para los radiobuttons */
+    .radio-container {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    
+    /* Establecer lugar fijo para Meses Hasta Primer Cobro */
+    .campo-meses-primer-cobro {
+        margin-top: 10px;
+        margin-bottom: 30px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -206,9 +238,11 @@ with header_col1:
 
 with header_col2:
     st.markdown("<br>", unsafe_allow_html=True)  # Espacio para alinear con el título
+    st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
     reset_todo_superior = st.button("🔄 RESET TODO", type="primary", key="reset_todo_superior", 
                           use_container_width=True, 
                           help="Reinicia todas las inversiones y configuraciones")
+    st.markdown('</div>', unsafe_allow_html=True)
     if reset_todo_superior:
         reset_all()
         st.success("Todas las reinversiones han sido reiniciadas")
@@ -269,7 +303,7 @@ with col_inicial:
         value=6, 
         step=1,
         key="meses_sin_cobros_inicial",
-        help="Tiempo entre el fin de cuotas normales y el inicio de cuotas de regulación"
+        help="Tiempo en meses entre el fin de cuotas normales y el inicio de cuotas de regulación"
     )
     
     cuotas_regulacion_inicial = st.number_input(
@@ -278,7 +312,7 @@ with col_inicial:
         value=5, 
         step=1,
         key="cuotas_regulacion_inicial",
-        help="Número de cuotas para el cobro de regulación"
+        help="Número de cuotas adicionales para el cobro de honorarios por regulación"
     )
     
     importe_regulacion_inicial = st.number_input(
@@ -287,7 +321,7 @@ with col_inicial:
         value=500000, 
         step=100000,
         key="importe_regulacion_inicial",
-        help="Importe de cada cuota de regulación (antes de aplicar % de distribución)"
+        help="Importe bruto de cada cuota de honorarios por regulación (antes de aplicar % de distribución)"
     )
     
     # Usar radio buttons para el % de Distribución
@@ -298,7 +332,7 @@ with col_inicial:
         index=1,  # Predeterminado 40% (índice 1)
         horizontal=True,
         key="pct_distribucion_inicial",
-        help="Porcentaje del importe de regulación que corresponde al flujo"
+        help="Porcentaje del importe de regulación que corresponde al estudio (el resto va al cliente)"
     )
     
     no_cobro_inicial = st.slider(
@@ -325,13 +359,17 @@ with col_inicial:
     
     col1, col2 = st.columns(2)
     with col1:
+        st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         ejecutar_inversion = st.button("Ejecutar Inversión Inicial", type="primary")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col2:
+        st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         reset_inicial = st.button("Reset Inicial", type="secondary")
         if reset_inicial:
             reset_all()
             st.success("Inversión inicial y reinversiones reiniciados")
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ---- Sección Reinversión Compra ----
 with col_compra:
@@ -390,7 +428,7 @@ with col_compra:
         value=6, 
         step=1,
         key="meses_sin_cobros_compra",
-        help="Tiempo entre el fin de cuotas normales y el inicio de cuotas de regulación"
+        help="Tiempo en meses entre el fin de cuotas normales y el inicio de cuotas de regulación"
     )
     
     cuotas_regulacion_compra = st.number_input(
@@ -399,7 +437,7 @@ with col_compra:
         value=5, 
         step=1,
         key="cuotas_regulacion_compra",
-        help="Número de cuotas para el cobro de regulación"
+        help="Número de cuotas adicionales para el cobro de honorarios por regulación"
     )
     
     importe_regulacion_compra = st.number_input(
@@ -408,7 +446,7 @@ with col_compra:
         value=500000, 
         step=100000,
         key="importe_regulacion_compra",
-        help="Importe de cada cuota de regulación (antes de aplicar % de distribución)"
+        help="Importe bruto de cada cuota de honorarios por regulación (antes de aplicar % de distribución)"
     )
     
     # Usar radio buttons para el % de Distribución
@@ -419,7 +457,7 @@ with col_compra:
         index=1,  # Predeterminado 40% (índice 1)
         horizontal=True,
         key="pct_distribucion_compra",
-        help="Porcentaje del importe de regulación que corresponde al flujo"
+        help="Porcentaje del importe de regulación que corresponde al estudio (el resto va al cliente)"
     )
     
     no_cobro_compra = st.slider(
@@ -446,6 +484,7 @@ with col_compra:
     
     col1, col2 = st.columns(2)
     with col1:
+        st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         agregar_compra = st.button("Agregar Compra", type="primary")
         if agregar_compra:
             if agregar_reinversion(
@@ -463,12 +502,15 @@ with col_compra:
                 meses_demora_compra
             ):
                 st.success(f"Reinversión Compra agregada en mes {mes_compra}")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
+        st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         reset_compra = st.button("Reset Compra", type="secondary")
         if reset_compra:
             reset_reinversion("Compra")
             st.success("Reinversiones Compra reiniciadas")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ---- Sección Reinversión Colocación ----
 with col_colocacion:
@@ -527,7 +569,7 @@ with col_colocacion:
         value=6, 
         step=1,
         key="meses_sin_cobros_colocacion",
-        help="Tiempo entre el fin de cuotas normales y el inicio de cuotas de regulación"
+        help="Tiempo en meses entre el fin de cuotas normales y el inicio de cuotas de regulación"
     )
     
     cuotas_regulacion_colocacion = st.number_input(
@@ -536,7 +578,7 @@ with col_colocacion:
         value=5, 
         step=1,
         key="cuotas_regulacion_colocacion",
-        help="Número de cuotas para el cobro de regulación"
+        help="Número de cuotas adicionales para el cobro de honorarios por regulación"
     )
     
     importe_regulacion_colocacion = st.number_input(
@@ -545,7 +587,7 @@ with col_colocacion:
         value=500000, 
         step=100000,
         key="importe_regulacion_colocacion",
-        help="Importe de cada cuota de regulación (antes de aplicar % de distribución)"
+        help="Importe bruto de cada cuota de honorarios por regulación (antes de aplicar % de distribución)"
     )
     
     # Usar radio buttons para el % de Distribución
@@ -556,7 +598,7 @@ with col_colocacion:
         index=1,  # Predeterminado 40% (índice 1)
         horizontal=True,
         key="pct_distribucion_colocacion",
-        help="Porcentaje del importe de regulación que corresponde al flujo"
+        help="Porcentaje del importe de regulación que corresponde al estudio (el resto va al cliente)"
     )
     
     no_cobro_colocacion = st.slider(
@@ -583,6 +625,7 @@ with col_colocacion:
     
     col1, col2 = st.columns(2)
     with col1:
+        st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         agregar_colocacion = st.button("Agregar Colocación", type="primary")
         if agregar_colocacion:
             if agregar_reinversion(
@@ -600,12 +643,15 @@ with col_colocacion:
                 meses_demora_colocacion
             ):
                 st.success(f"Reinversión Colocación agregada en mes {mes_colocacion}")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
+        st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         reset_colocacion = st.button("Reset Colocación", type="secondary")
         if reset_colocacion:
             reset_reinversion("Colocacion")
             st.success("Reinversiones Colocación reiniciadas")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # Ya no es necesario el botón de Reset Todo aquí, se movió a la parte superior de la página
 
