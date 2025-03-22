@@ -77,6 +77,13 @@ st.markdown("""
         margin-top: 10px;
         margin-bottom: 30px;
     }
+    
+    /* Botón de reinversión automática (amarillo) */
+    .boton-reinversion-auto button {
+        background-color: #FFC107 !important;
+        border-color: #FFC107 !important;
+        color: #000 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -123,8 +130,8 @@ def generar_flujo(
     """Generar el flujo de caja basado en parámetros de entrada"""
     # Crear dataframe para el flujo de caja
     flujo_caja = pd.DataFrame(
-        np.zeros((meses, 9)),
-        columns=["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "Disponible para Reinversión", "No Cobro", "Operaciones Abiertas"]
+        np.zeros((meses, 10)),
+        columns=["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "No Cobro", "Operaciones Abiertas", "Reinversiones Automáticas Mes", "Reinversiones Automáticas Total"]
     )
     
     # Aplicar inversión inicial
@@ -163,6 +170,10 @@ def generar_flujo(
             mes_inversion = min(reinv["mes"], meses - 1)
             flujo_caja.loc[mes_inversion, "Reinversión"] += reinv["inversion"]
             
+            # Incrementar contador de reinversiones automáticas si corresponde
+            if reinv.get("automatica", False) and reinv_list == reinversiones_colocacion:
+                flujo_caja.loc[mes_inversion, "Reinversiones Automáticas Mes"] += 1
+            
             # Procesar ingresos normales de las reinversiones
             for i in range(min(reinv["cuotas"], meses - reinv["mes"] - reinv["meses_demora"])):
                 mes = reinv["mes"] + i + reinv["meses_demora"]
@@ -198,24 +209,18 @@ def generar_flujo(
     
     flujo_caja["Total Disponible"] = flujo_caja["Ingresos"].cumsum() - flujo_caja["Reinversión"].cumsum() - flujo_caja["Pago Mensual"].cumsum()
     
-    # Calcular disponible para reinversión (ingresos - pago mensual)
+    # Calcular totales acumulados de reinversiones automáticas
+    reinv_auto_acumuladas = 0
     for i in range(meses):
-        if i == 0:
-            flujo_caja.loc[i, "Disponible para Reinversión"] = -inv_inicial
-        else:
-            flujo_caja.loc[i, "Disponible para Reinversión"] = (
-                flujo_caja.loc[i-1, "Disponible para Reinversión"] + 
-                flujo_caja.loc[i, "Ingresos"] - 
-                flujo_caja.loc[i, "Pago Mensual"] -
-                flujo_caja.loc[i, "Reinversión"]
-            )
+        reinv_auto_acumuladas += flujo_caja.loc[i, "Reinversiones Automáticas Mes"]
+        flujo_caja.loc[i, "Reinversiones Automáticas Total"] = reinv_auto_acumuladas
     
     return flujo_caja
 
 # Función para agregar reinversión
 def agregar_reinversion(tipo_reinversion, mes, inversion, cuotas, importe, 
                         meses_sin_cobros, cuotas_regulacion, importe_regulacion, 
-                        pct_distribucion, no_cobro, ops, meses_demora):
+                        pct_distribucion, no_cobro, ops, meses_demora, automatica=False):
     nueva_reinversion = {
         "mes": mes,
         "inversion": inversion,
@@ -227,7 +232,8 @@ def agregar_reinversion(tipo_reinversion, mes, inversion, cuotas, importe,
         "pct_distribucion": pct_distribucion,
         "no_cobro": no_cobro,
         "ops": ops,
-        "meses_demora": meses_demora
+        "meses_demora": meses_demora,
+        "automatica": automatica
     }
     
     if tipo_reinversion == "Compra":
@@ -236,6 +242,99 @@ def agregar_reinversion(tipo_reinversion, mes, inversion, cuotas, importe,
         st.session_state.reinversiones_colocacion.append(nueva_reinversion)
     
     return True
+
+# Función para ejecutar reinversiones automáticas
+def ejecutar_reinversion_automatica(
+    inversion_colocacion, 
+    costo_op_colocacion, 
+    cuotas_colocacion, 
+    importe_colocacion, 
+    meses_sin_cobros_colocacion, 
+    cuotas_regulacion_colocacion, 
+    importe_regulacion_colocacion, 
+    pct_distribucion_colocacion, 
+    no_cobro_colocacion, 
+    meses_demora_colocacion
+):
+    # Generar un flujo de caja temporal con las reinversiones actuales
+    flujo_temp = generar_flujo(
+        inv_inicial=inv_inicial,
+        costo_inicial=costo_inicial,
+        cuotas_inicial=cuotas_inicial,
+        importe_inicial=importe_inicial,
+        meses_sin_cobros_inicial=meses_sin_cobros_inicial,
+        cuotas_regulacion_inicial=cuotas_regulacion_inicial,
+        importe_regulacion_inicial=importe_regulacion_inicial,
+        pct_distribucion_inicial=pct_distribucion_inicial,
+        no_cobro_inicial=no_cobro_inicial,
+        ops_inicial=ops_inicial,
+        meses_demora_inicial=meses_demora_inicial,
+        reinversiones_compra=st.session_state.reinversiones_compra,
+        reinversiones_colocacion=st.session_state.reinversiones_colocacion,
+        pago_mensual=pago_mensual
+    )
+    
+    # Costo por reinversión y operaciones que se generan
+    ops_por_reinversion = calcular_operaciones(inversion_colocacion, costo_op_colocacion)
+    
+    # Contador de reinversiones automáticas
+    reinversiones_agregadas = 0
+    
+    # Recorrer todos los meses para ver dónde hay fondos disponibles
+    for mes in range(1, 60):  # Empezar desde el mes 1
+        # Convertir el valor a número
+        disponible = flujo_temp.loc[mes, "Total Disponible"]
+        if isinstance(disponible, str):
+            disponible = float(disponible.replace('Gs. ', '').replace('.', ''))
+        
+        # Verificar si hay suficiente para al menos una reinversión
+        while disponible >= inversion_colocacion:
+            # Agregar una reinversión automática para este mes
+            agregar_reinversion(
+                "Colocacion",
+                mes,  # Mes actual
+                inversion_colocacion,
+                cuotas_colocacion,
+                importe_colocacion,
+                meses_sin_cobros_colocacion,
+                cuotas_regulacion_colocacion,
+                importe_regulacion_colocacion,
+                pct_distribucion_colocacion,
+                no_cobro_colocacion,
+                ops_por_reinversion,
+                meses_demora_colocacion,
+                automatica=True  # Marcar como automática
+            )
+            
+            reinversiones_agregadas += 1
+            
+            # Actualizar el disponible restando la inversión
+            disponible -= inversion_colocacion
+            
+            # Regenerar el flujo temporal para la próxima iteración
+            flujo_temp = generar_flujo(
+                inv_inicial=inv_inicial,
+                costo_inicial=costo_inicial,
+                cuotas_inicial=cuotas_inicial,
+                importe_inicial=importe_inicial,
+                meses_sin_cobros_inicial=meses_sin_cobros_inicial,
+                cuotas_regulacion_inicial=cuotas_regulacion_inicial,
+                importe_regulacion_inicial=importe_regulacion_inicial,
+                pct_distribucion_inicial=pct_distribucion_inicial,
+                no_cobro_inicial=no_cobro_inicial,
+                ops_inicial=ops_inicial,
+                meses_demora_inicial=meses_demora_inicial,
+                reinversiones_compra=st.session_state.reinversiones_compra,
+                reinversiones_colocacion=st.session_state.reinversiones_colocacion,
+                pago_mensual=pago_mensual
+            )
+            
+            # Actualizar el disponible después de recalcular el flujo
+            disponible = flujo_temp.loc[mes, "Total Disponible"]
+            if isinstance(disponible, str):
+                disponible = float(disponible.replace('Gs. ', '').replace('.', ''))
+    
+    return reinversiones_agregadas
 
 # Función para resetear datos
 def reset_all():
@@ -654,7 +753,7 @@ with col_colocacion:
         help="Tiempo que transcurre desde la inversión hasta recibir el primer pago"
     )
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         agregar_colocacion = st.button("Agregar Colocación", type="primary")
@@ -677,6 +776,29 @@ with col_colocacion:
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
+        st.markdown('<div class="boton-accion boton-reinversion-auto">', unsafe_allow_html=True)
+        reinversion_auto = st.button("Reinversión Automática")
+        if reinversion_auto:
+            # Ejecutar la reinversión automática
+            reinversiones_agregadas = ejecutar_reinversion_automatica(
+                inversion_colocacion,
+                costo_op_colocacion,
+                cuotas_colocacion,
+                importe_colocacion,
+                meses_sin_cobros_colocacion,
+                cuotas_regulacion_colocacion,
+                importe_regulacion_colocacion,
+                pct_distribucion_colocacion,
+                no_cobro_colocacion,
+                meses_demora_colocacion
+            )
+            if reinversiones_agregadas > 0:
+                st.success(f"Se agregaron {reinversiones_agregadas} reinversiones automáticas")
+            else:
+                st.warning("No hay fondos suficientes para hacer reinversiones automáticas")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col3:
         st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
         reset_colocacion = st.button("Reset Colocación", type="secondary")
         if reset_colocacion:
@@ -684,10 +806,8 @@ with col_colocacion:
             st.success("Reinversiones Colocación reiniciadas")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Ya no es necesario el botón de Reset Todo aquí, se movió a la parte superior de la página
-
 # Generar y mostrar el flujo de caja
-if ejecutar_inversion or agregar_compra or agregar_colocacion or st.session_state.reinversiones_compra or st.session_state.reinversiones_colocacion:
+if ejecutar_inversion or agregar_compra or agregar_colocacion or reinversion_auto or st.session_state.reinversiones_compra or st.session_state.reinversiones_colocacion:
     st.header("Flujo de Caja")
     
     # Resumen de reinversiones si hay alguna
@@ -699,7 +819,10 @@ if ejecutar_inversion or agregar_compra or agregar_colocacion or st.session_stat
             st.write(f"Reinversiones Compra: {len(st.session_state.reinversiones_compra)}")
         
         with resumen_col2:
-            st.write(f"Reinversiones Colocación: {len(st.session_state.reinversiones_colocacion)}")
+            # Contar reinversiones manuales y automáticas
+            reinv_manuales = sum(1 for r in st.session_state.reinversiones_colocacion if not r.get('automatica', False))
+            reinv_automaticas = sum(1 for r in st.session_state.reinversiones_colocacion if r.get('automatica', False))
+            st.write(f"Reinversiones Colocación: {len(st.session_state.reinversiones_colocacion)} (Manuales: {reinv_manuales}, Automáticas: {reinv_automaticas})")
     
     # Generar flujo de caja
     flujo_caja = generar_flujo(
@@ -716,11 +839,11 @@ if ejecutar_inversion or agregar_compra or agregar_colocacion or st.session_stat
         meses_demora_inicial=meses_demora_inicial,
         reinversiones_compra=st.session_state.reinversiones_compra,
         reinversiones_colocacion=st.session_state.reinversiones_colocacion,
-        pago_mensual=pago_mensual  # Añadir pago mensual al generar el flujo
+        pago_mensual=pago_mensual
     )
     
     # Formatear valores
-    for col in ["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "Disponible para Reinversión", "No Cobro"]:
+    for col in ["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "No Cobro"]:
         flujo_caja[col] = flujo_caja[col].map(formatear_pyg)
     
     # Mostrar tabla de flujo de caja
