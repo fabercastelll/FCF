@@ -117,17 +117,22 @@ def generar_flujo(
     meses_demora_inicial,
     reinversiones_compra,
     reinversiones_colocacion,
+    pago_mensual,
     meses=60
 ):
     """Generar el flujo de caja basado en parámetros de entrada"""
     # Crear dataframe para el flujo de caja
     flujo_caja = pd.DataFrame(
-        np.zeros((meses, 7)),
-        columns=["Ingresos", "Reinversión", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "No Cobro", "Operaciones Abiertas"]
+        np.zeros((meses, 9)),
+        columns=["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "Disponible para Reinversión", "No Cobro", "Operaciones Abiertas"]
     )
     
     # Aplicar inversión inicial
     flujo_caja.loc[0, "Saldo Acumulado"] = -inv_inicial
+    
+    # Aplicar pago mensual a partir del mes 1
+    for mes in range(1, meses):
+        flujo_caja.loc[mes, "Pago Mensual"] = pago_mensual
     
     # Procesar ingresos de inversión inicial con retraso
     for i in range(min(cuotas_inicial, meses - 1)):
@@ -182,12 +187,28 @@ def generar_flujo(
     
     # Calcular totales acumulados
     flujo_caja["Total Cobrado"] = flujo_caja["Ingresos"].cumsum()
+    
+    # Calcular Saldo Acumulado considerando pago mensual
     flujo_caja["Saldo Acumulado"] = (
         flujo_caja.loc[0, "Saldo Acumulado"] + 
         flujo_caja["Ingresos"].cumsum() - 
-        flujo_caja["Reinversión"].cumsum()
+        flujo_caja["Reinversión"].cumsum() -
+        flujo_caja["Pago Mensual"].cumsum()
     )
-    flujo_caja["Total Disponible"] = flujo_caja["Ingresos"].cumsum() - flujo_caja["Reinversión"].cumsum()
+    
+    flujo_caja["Total Disponible"] = flujo_caja["Ingresos"].cumsum() - flujo_caja["Reinversión"].cumsum() - flujo_caja["Pago Mensual"].cumsum()
+    
+    # Calcular disponible para reinversión (ingresos - pago mensual)
+    for i in range(meses):
+        if i == 0:
+            flujo_caja.loc[i, "Disponible para Reinversión"] = -inv_inicial
+        else:
+            flujo_caja.loc[i, "Disponible para Reinversión"] = (
+                flujo_caja.loc[i-1, "Disponible para Reinversión"] + 
+                flujo_caja.loc[i, "Ingresos"] - 
+                flujo_caja.loc[i, "Pago Mensual"] -
+                flujo_caja.loc[i, "Reinversión"]
+            )
     
     return flujo_caja
 
@@ -237,6 +258,16 @@ with header_col1:
     st.write("Herramienta para simular flujos de caja con inversiones iniciales y reinversiones")
 
 with header_col2:
+    # Agregar campo para pago mensual
+    pago_mensual = st.number_input(
+        "Pago Mensual:", 
+        min_value=0, 
+        value=5000000, 
+        step=100000,
+        key="pago_mensual",
+        help="Cantidad mensual que se deducirá del flujo de caja"
+    )
+    
     st.markdown("<br>", unsafe_allow_html=True)  # Espacio para alinear con el título
     st.markdown('<div class="boton-accion">', unsafe_allow_html=True)
     reset_todo_superior = st.button("🔄 RESET TODO", type="primary", key="reset_todo_superior", 
@@ -684,11 +715,12 @@ if ejecutar_inversion or agregar_compra or agregar_colocacion or st.session_stat
         ops_inicial=ops_inicial,
         meses_demora_inicial=meses_demora_inicial,
         reinversiones_compra=st.session_state.reinversiones_compra,
-        reinversiones_colocacion=st.session_state.reinversiones_colocacion
+        reinversiones_colocacion=st.session_state.reinversiones_colocacion,
+        pago_mensual=pago_mensual  # Añadir pago mensual al generar el flujo
     )
     
     # Formatear valores
-    for col in ["Ingresos", "Reinversión", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "No Cobro"]:
+    for col in ["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "Disponible para Reinversión", "No Cobro"]:
         flujo_caja[col] = flujo_caja[col].map(formatear_pyg)
     
     # Mostrar tabla de flujo de caja
