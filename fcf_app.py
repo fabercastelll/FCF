@@ -125,26 +125,27 @@ def generar_flujo(
     reinversiones_compra,
     reinversiones_colocacion,
     pago_mensual,
-    meses=60
+    meses_pago,
+    meses_total
 ):
     """Generar el flujo de caja basado en parámetros de entrada"""
     # Crear dataframe para el flujo de caja
     flujo_caja = pd.DataFrame(
-        np.zeros((meses, 10)),
+        np.zeros((meses_total, 10)),
         columns=["Ingresos", "Reinversión", "Pago Mensual", "Total Cobrado", "Saldo Acumulado", "Total Disponible", "No Cobro", "Operaciones Abiertas", "Reinversiones Automáticas Mes", "Reinversiones Automáticas Total"]
     )
     
     # Aplicar inversión inicial
     flujo_caja.loc[0, "Saldo Acumulado"] = -inv_inicial
     
-    # Aplicar pago mensual a partir del mes 1
-    for mes in range(1, meses):
+    # Aplicar pago mensual solo durante los meses especificados
+    for mes in range(1, min(meses_pago + 1, meses_total)):
         flujo_caja.loc[mes, "Pago Mensual"] = pago_mensual
     
     # Procesar ingresos de inversión inicial con retraso
-    for i in range(min(cuotas_inicial, meses - 1)):
+    for i in range(min(cuotas_inicial, meses_total - 1)):
         mes = i + 1 + meses_demora_inicial
-        if mes < meses:
+        if mes < meses_total:
             ingreso_real = ops_inicial * (importe_inicial * (1 - no_cobro_inicial / 100))
             flujo_caja.loc[mes, "Ingresos"] += ingreso_real
             flujo_caja.loc[mes, "No Cobro"] += ops_inicial * (importe_inicial * (no_cobro_inicial / 100))
@@ -154,9 +155,9 @@ def generar_flujo(
     # Calcular mes de inicio para las cuotas de regulación (después de las cuotas iniciales + meses sin cobros)
     mes_inicio_regulacion = meses_demora_inicial + cuotas_inicial + meses_sin_cobros_inicial
     
-    for i in range(min(cuotas_regulacion_inicial, meses - mes_inicio_regulacion)):
+    for i in range(min(cuotas_regulacion_inicial, meses_total - mes_inicio_regulacion)):
         mes = mes_inicio_regulacion + i
-        if mes < meses:
+        if mes < meses_total:
             # Aplicar el porcentaje de distribución al importe de la regulación
             importe_ajustado = importe_regulacion_inicial * (pct_distribucion_inicial / 100)
             ingreso_real = ops_inicial * (importe_ajustado * (1 - no_cobro_inicial / 100))
@@ -167,7 +168,7 @@ def generar_flujo(
     # Procesar reinversiones
     for reinv_list in [reinversiones_compra, reinversiones_colocacion]:
         for reinv in reinv_list:
-            mes_inversion = min(reinv["mes"], meses - 1)
+            mes_inversion = min(reinv["mes"], meses_total - 1)
             flujo_caja.loc[mes_inversion, "Reinversión"] += reinv["inversion"]
             
             # Incrementar contador de reinversiones automáticas si corresponde
@@ -175,9 +176,9 @@ def generar_flujo(
                 flujo_caja.loc[mes_inversion, "Reinversiones Automáticas Mes"] += 1
             
             # Procesar ingresos normales de las reinversiones
-            for i in range(min(reinv["cuotas"], meses - reinv["mes"] - reinv["meses_demora"])):
+            for i in range(min(reinv["cuotas"], meses_total - reinv["mes"] - reinv["meses_demora"])):
                 mes = reinv["mes"] + i + reinv["meses_demora"]
-                if mes < meses:
+                if mes < meses_total:
                     ingreso_real = reinv["ops"] * (reinv["importe"] * (1 - reinv["no_cobro"] / 100))
                     flujo_caja.loc[mes, "Ingresos"] += ingreso_real
                     flujo_caja.loc[mes, "No Cobro"] += reinv["ops"] * (reinv["importe"] * (reinv["no_cobro"] / 100))
@@ -186,9 +187,9 @@ def generar_flujo(
             # Procesar cuotas de regulación de las reinversiones
             mes_inicio_regulacion_reinv = reinv["mes"] + reinv["meses_demora"] + reinv["cuotas"] + reinv["meses_sin_cobros"]
             
-            for i in range(min(reinv["cuotas_regulacion"], meses - mes_inicio_regulacion_reinv)):
+            for i in range(min(reinv["cuotas_regulacion"], meses_total - mes_inicio_regulacion_reinv)):
                 mes = mes_inicio_regulacion_reinv + i
-                if mes < meses:
+                if mes < meses_total:
                     # Aplicar el porcentaje de distribución al importe de la regulación
                     importe_ajustado = reinv["importe_regulacion"] * (reinv["pct_distribucion"] / 100)
                     ingreso_real = reinv["ops"] * (importe_ajustado * (1 - reinv["no_cobro"] / 100))
@@ -211,7 +212,7 @@ def generar_flujo(
     
     # Calcular totales acumulados de reinversiones automáticas
     reinv_auto_acumuladas = 0
-    for i in range(meses):
+    for i in range(meses_total):
         reinv_auto_acumuladas += flujo_caja.loc[i, "Reinversiones Automáticas Mes"]
         flujo_caja.loc[i, "Reinversiones Automáticas Total"] = reinv_auto_acumuladas
     
@@ -254,7 +255,9 @@ def ejecutar_reinversion_automatica(
     importe_regulacion_colocacion, 
     pct_distribucion_colocacion, 
     no_cobro_colocacion, 
-    meses_demora_colocacion
+    meses_demora_colocacion,
+    meses_pago,
+    meses_total
 ):
     # Generar un flujo de caja temporal con las reinversiones actuales
     flujo_temp = generar_flujo(
@@ -271,7 +274,9 @@ def ejecutar_reinversion_automatica(
         meses_demora_inicial=meses_demora_inicial,
         reinversiones_compra=st.session_state.reinversiones_compra,
         reinversiones_colocacion=st.session_state.reinversiones_colocacion,
-        pago_mensual=pago_mensual
+        pago_mensual=pago_mensual,
+        meses_pago=meses_pago,
+        meses_total=meses_total
     )
     
     # Costo por reinversión y operaciones que se generan
@@ -281,7 +286,7 @@ def ejecutar_reinversion_automatica(
     reinversiones_agregadas = 0
     
     # Recorrer todos los meses para ver dónde hay fondos disponibles
-    for mes in range(1, 60):  # Empezar desde el mes 1
+    for mes in range(1, meses_total):  # Empezar desde el mes 1
         # Convertir el valor a número
         disponible = flujo_temp.loc[mes, "Total Disponible"]
         if isinstance(disponible, str):
@@ -326,7 +331,9 @@ def ejecutar_reinversion_automatica(
                 meses_demora_inicial=meses_demora_inicial,
                 reinversiones_compra=st.session_state.reinversiones_compra,
                 reinversiones_colocacion=st.session_state.reinversiones_colocacion,
-                pago_mensual=pago_mensual
+                pago_mensual=pago_mensual,
+                meses_pago=meses_pago,
+                meses_total=meses_total
             )
             
             # Actualizar el disponible después de recalcular el flujo
@@ -365,6 +372,27 @@ with header_col2:
         step=100000,
         key="pago_mensual",
         help="Cantidad mensual que se deducirá del flujo de caja"
+    )
+    
+    # Nuevos campos para duración de pagos y proyección total
+    meses_pago = st.number_input(
+        "Meses de Pago:", 
+        min_value=1, 
+        max_value=360,
+        value=60, 
+        step=12,
+        key="meses_pago",
+        help="Número de meses en los que se aplicará el pago mensual"
+    )
+    
+    meses_total = st.number_input(
+        "Meses a Proyectar:", 
+        min_value=12, 
+        max_value=360,
+        value=100, 
+        step=12,
+        key="meses_total",
+        help="Número total de meses a incluir en el flujo de caja"
     )
     
     st.markdown("<br>", unsafe_allow_html=True)  # Espacio para alinear con el título
@@ -790,7 +818,9 @@ with col_colocacion:
                 importe_regulacion_colocacion,
                 pct_distribucion_colocacion,
                 no_cobro_colocacion,
-                meses_demora_colocacion
+                meses_demora_colocacion,
+                meses_pago,
+                meses_total
             )
             if reinversiones_agregadas > 0:
                 st.success(f"Se agregaron {reinversiones_agregadas} reinversiones automáticas")
@@ -839,7 +869,9 @@ if ejecutar_inversion or agregar_compra or agregar_colocacion or reinversion_aut
         meses_demora_inicial=meses_demora_inicial,
         reinversiones_compra=st.session_state.reinversiones_compra,
         reinversiones_colocacion=st.session_state.reinversiones_colocacion,
-        pago_mensual=pago_mensual
+        pago_mensual=pago_mensual,
+        meses_pago=meses_pago,
+        meses_total=meses_total
     )
     
     # Formatear valores
